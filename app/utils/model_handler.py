@@ -15,18 +15,41 @@ def find_model_files():
     app_utils_dir = os.path.dirname(current_file)
     app_dir = os.path.dirname(app_utils_dir)
     project_root = os.path.dirname(app_dir)
-    models_dir = os.path.join(project_root, 'models')
+    
+    # Possible model directories
+    model_dirs = [
+        os.path.join(project_root, 'models'),  # Local development
+        '/mount/src/diabetes-analysis/models',  # Streamlit Cloud
+        os.path.join(os.getcwd(), 'models'),   # Alternative path
+    ]
     
     print("\nSearching for model files...")
     print(f"Current file: {current_file}")
     print(f"Project root: {project_root}")
-    print(f"Models directory: {models_dir}")
+    print(f"Possible model directories: {model_dirs}")
     
-    # Model files to find
+    # Model filenames
+    filenames = {
+        'model': 'diabetes_model.joblib',
+        'scaler': 'scaler.joblib',
+        'features': 'feature_columns.txt'
+    }
+    
+    # Find the first available model directory
+    model_dir = None
+    for dir_path in model_dirs:
+        if os.path.exists(dir_path):
+            print(f"Found models directory at: {dir_path}")
+            model_dir = dir_path
+            break
+    
+    if not model_dir:
+        raise FileNotFoundError(f"Could not find models directory in any of: {model_dirs}")
+    
+    # Construct full file paths
     model_files = {
-        'model': os.path.join(models_dir, 'diabetes_model.joblib'),
-        'scaler': os.path.join(models_dir, 'scaler.joblib'),
-        'features': os.path.join(models_dir, 'feature_columns.txt')
+        file_type: os.path.join(model_dir, filename)
+        for file_type, filename in filenames.items()
     }
     
     # Verify all files exist
@@ -60,6 +83,14 @@ def load_model_components():
         print(f"\nERROR in load_model_components: {str(e)}")
         print(f"Current working directory: {os.getcwd()}")
         print(f"Python path: {sys.path}")
+        print(f"Directory contents:")
+        try:
+            print("\nProject root contents:")
+            print(os.listdir(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
+            print("\nCurrent directory contents:")
+            print(os.listdir(os.getcwd()))
+        except Exception as list_err:
+            print(f"Error listing directories: {str(list_err)}")
         raise
 
 def prepare_input_data(input_data):
