@@ -1,0 +1,9 @@
+Age
+Gender
+BMI
+Blood_Pressure
+Glucose_Level
+Exercise_Hours_Per_Week
+Smoking_Status
+Alcohol_Consumption_Per_Week
+Stress_Level
