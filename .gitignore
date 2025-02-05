@@ -41,11 +41,6 @@ ENV/
 .env.test.local
 .env.production.local
 
-# Model files
-*.joblib
-*.pkl
-*.h5
-
 # Logs
 *.log
 
