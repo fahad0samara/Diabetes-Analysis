@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, LabelEncoder
-from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.metrics import accuracy_score, classification_report
 import joblib
 
@@ -74,8 +74,10 @@ def train_model(X, y):
     X_test_scaled = scaler.transform(X_test)
     
     print("Training model...")
-    model = DecisionTreeClassifier(
-        max_depth=10,
+    model = GradientBoostingClassifier(
+        n_estimators=100,
+        learning_rate=0.1,
+        max_depth=5,
         min_samples_split=5,
         min_samples_leaf=2,
         random_state=42
