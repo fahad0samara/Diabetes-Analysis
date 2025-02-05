@@ -1,80 +1,79 @@
 """
-Verify and train diabetes prediction model.
-Author: Fahad
+Script to verify paths and train the diabetes prediction model.
 """
 
 import os
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, classification_report
 import joblib
 
-def verify_and_train():
-    """Verify files and train model if needed."""
-    # Get absolute paths
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    data_dir = os.path.join(base_dir, 'data')
-    models_dir = os.path.join(base_dir, 'models')
-    
-    # Create models directory if it doesn't exist
-    os.makedirs(models_dir, exist_ok=True)
+def verify_paths():
+    """Verify and create necessary directories."""
+    # Get the project root directory
+    current_dir = os.path.dirname(os.path.abspath(__file__))
     
     # Define paths
-    data_path = os.path.join(data_dir, 'diabetes_dataset.csv')
-    model_path = os.path.join(models_dir, 'diabetes_model.joblib')
-    scaler_path = os.path.join(models_dir, 'scaler.joblib')
-    features_path = os.path.join(models_dir, 'feature_columns.txt')
+    paths = {
+        'data': os.path.join(current_dir, 'data'),
+        'models': os.path.join(current_dir, 'models'),
+        'dataset': os.path.join(current_dir, 'data', 'diabetes_dataset.csv')
+    }
     
-    print("\nVerifying paths:")
-    print(f"Base directory: {base_dir}")
-    print(f"Data directory: {data_dir}")
-    print(f"Models directory: {models_dir}")
-    print(f"Data path: {data_path}")
-    print(f"Model path: {model_path}")
-    print(f"Scaler path: {scaler_path}")
-    print(f"Features path: {features_path}")
+    # Create directories if they don't exist
+    for path in ['data', 'models']:
+        os.makedirs(paths[path], exist_ok=True)
+        print(f"Verified {path} directory at: {paths[path]}")
     
-    # Verify data file exists
-    if not os.path.exists(data_path):
-        raise FileNotFoundError(f"Dataset not found at {data_path}")
+    return paths
+
+def load_and_preprocess_data(dataset_path):
+    """Load and preprocess the dataset."""
+    print("\nLoading dataset...")
+    df = pd.read_csv(dataset_path)
     
-    print("\nLoading data...")
-    df = pd.read_csv(data_path)
-    print(f"Loaded {len(df)} records")
+    # Print dataset info
+    print("\nDataset Info:")
+    print(df.info())
+    print("\nSample Data:")
+    print(df.head())
     
     # Convert categorical variables
-    print("\nProcessing features...")
-    df['Gender'] = df['Gender'].map({'Male': 0, 'Female': 1})
-    df['Smoking_Status'] = df['Smoking_Status'].map({'Never': 0, 'Former': 1, 'Current': 2})
-    df['Stress_Level'] = df['Stress_Level'].map({'Low': 0, 'Moderate': 1, 'High': 2})
+    categorical_columns = df.select_dtypes(include=['object']).columns
+    label_encoders = {}
     
-    # Select features
-    features = [
-        'Age', 'Gender', 'BMI', 'Blood_Pressure', 'Glucose_Level',
-        'Exercise_Hours_Per_Week', 'Smoking_Status',
-        'Alcohol_Consumption_Per_Week', 'Stress_Level'
-    ]
+    print("\nProcessing categorical variables:")
+    for column in categorical_columns:
+        print(f"Encoding {column}...")
+        label_encoders[column] = LabelEncoder()
+        df[column] = label_encoders[column].fit_transform(df[column])
+        print(f"Categories in {column}: {label_encoders[column].classes_}")
     
-    # Save feature list
-    print("\nSaving feature list...")
-    with open(features_path, 'w') as f:
-        f.write('\n'.join(features))
-    print(f"Features saved to {features_path}")
+    # Separate features and target
+    target_column = 'Diabetes_Diagnosis' if 'Diabetes_Diagnosis' in df.columns else 'Diabetes'
+    X = df.drop(target_column, axis=1)
+    y = df[target_column]
     
-    X = df[features]
-    y = df['Diabetes_Diagnosis']
+    # Save feature columns
+    feature_columns = X.columns.tolist()
+    print("\nFeature columns:", feature_columns)
     
+    return X, y, feature_columns
+
+def train_model(X, y):
+    """Train the model."""
     print("\nSplitting data...")
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     
-    print("\nScaling features...")
+    print("Scaling features...")
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
     
-    print("\nTraining model...")
+    print("Training model...")
     model = RandomForestClassifier(
         n_estimators=100,
         max_depth=10,
@@ -84,29 +83,65 @@ def verify_and_train():
     )
     model.fit(X_train_scaled, y_train)
     
-    print("\nEvaluating model...")
-    train_score = model.score(X_train_scaled, y_train)
-    test_score = model.score(X_test_scaled, y_test)
-    print(f"Training accuracy: {train_score:.4f}")
-    print(f"Testing accuracy: {test_score:.4f}")
+    # Evaluate model
+    y_train_pred = model.predict(X_train_scaled)
+    y_test_pred = model.predict(X_test_scaled)
     
-    print("\nSaving model files...")
+    print("\nModel Performance:")
+    print(f"Training Accuracy: {accuracy_score(y_train, y_train_pred):.2%}")
+    print(f"Testing Accuracy: {accuracy_score(y_test, y_test_pred):.2%}")
+    print("\nClassification Report:")
+    print(classification_report(y_test, y_test_pred))
+    
+    # Feature importance
+    feature_importance = pd.DataFrame({
+        'feature': X.columns,
+        'importance': model.feature_importances_
+    }).sort_values('importance', ascending=False)
+    
+    print("\nFeature Importance:")
+    print(feature_importance)
+    
+    return model, scaler
+
+def save_model_components(model, scaler, feature_columns, models_dir):
+    """Save model components."""
+    print("\nSaving model components...")
+    
+    # Save model
+    model_path = os.path.join(models_dir, 'diabetes_model.joblib')
     joblib.dump(model, model_path)
+    print(f"Model saved to: {model_path}")
+    
+    # Save scaler
+    scaler_path = os.path.join(models_dir, 'scaler.joblib')
     joblib.dump(scaler, scaler_path)
+    print(f"Scaler saved to: {scaler_path}")
     
-    print("\nVerifying saved files...")
-    if os.path.exists(model_path):
-        print(f"Model saved successfully ({os.path.getsize(model_path)} bytes)")
-    if os.path.exists(scaler_path):
-        print(f"Scaler saved successfully ({os.path.getsize(scaler_path)} bytes)")
-    if os.path.exists(features_path):
-        print(f"Features saved successfully ({os.path.getsize(features_path)} bytes)")
+    # Save feature columns
+    features_path = os.path.join(models_dir, 'feature_columns.txt')
+    with open(features_path, 'w') as f:
+        for column in feature_columns:
+            f.write(f"{column}\n")
+    print(f"Feature columns saved to: {features_path}")
+
+def main():
+    """Main function to verify paths and train model."""
+    print("Starting model verification and training process...")
     
-    print("\nModel files saved successfully!")
+    # Verify paths
+    paths = verify_paths()
+    
+    # Load and preprocess data
+    X, y, feature_columns = load_and_preprocess_data(paths['dataset'])
+    
+    # Train model
+    model, scaler = train_model(X, y)
+    
+    # Save components
+    save_model_components(model, scaler, feature_columns, paths['models'])
+    
+    print("\nModel training and saving completed successfully!")
 
 if __name__ == "__main__":
-    try:
-        verify_and_train()
-    except Exception as e:
-        print(f"\nError: {str(e)}")
-        raise
+    main()
